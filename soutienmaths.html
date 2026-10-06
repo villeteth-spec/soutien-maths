@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Missions Vosges &amp; Co</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout : bandeau tableau de score en haut, à gauche le dossier (contexte + tableau qui se remplit), à droite la carte d'étape guidée. */
+:root{
+  --bg:#eef3f0; --surface:#ffffff; --ink:#15302a; --muted:#56706a; --line:#cfdcd6;
+  --pine:#1d5a48; --pine-ink:#ffffff; --gold:#f2b705; --gold-ink:#2a2100;
+  --ok:#1f8a4c; --ok-bg:#e2f4ea; --bad:#c2402f; --bad-bg:#fbe7e3; --hint-bg:#fff6d6;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1a17; --surface:#16251f; --ink:#e4efe9; --muted:#93aba3; --line:#2a3f37;
+  --pine:#2f8a6e; --pine-ink:#ffffff; --gold:#f5c63a; --gold-ink:#231b00;
+  --ok:#4cc583; --ok-bg:#163527; --bad:#ff7a66; --bad-bg:#3a1e1a; --hint-bg:#33290d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a17; --surface:#16251f; --ink:#e4efe9; --muted:#93aba3; --line:#2a3f37;
+  --pine:#2f8a6e; --pine-ink:#ffffff; --gold:#f5c63a; --gold-ink:#231b00;
+  --ok:#4cc583; --ok-bg:#163527; --bad:#ff7a66; --bad-bg:#3a1e1a; --hint-bg:#33290d; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:16px 48px}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* Bandeau */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;background:var(--pine);color:var(--pine-ink);border-radius:14px;padding:14px 18px}
+.brand{display:flex;flex-direction:column;line-height:1.05;margin-right:auto}
+.brand b{font:800 30px/1 var(--f-display);letter-spacing:.02em;text-transform:uppercase}
+.brand span{font-size:13px;opacity:.85}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:2px solid rgba(255,255,255,.35);background:transparent;color:var(--pine-ink);border-radius:999px;padding:6px 14px;font-weight:800;font-size:14px}
+.tab[aria-current="true"]{background:var(--pine-ink);color:var(--pine);border-color:var(--pine-ink)}
+.tab .done{color:var(--gold)}
+.score{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.18);border-radius:10px;padding:6px 12px;font:700 20px var(--f-mono)}
+.score .st{color:var(--gold)}
+.tools{display:flex;gap:6px}
+.tool{background:var(--gold);color:var(--gold-ink);border:0;border-radius:8px;padding:7px 12px;font-weight:800;font-size:14px}
+
+/* Grille principale */
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.eyebrow{font:700 12px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1,h2{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.01em;margin:4px 0 8px;text-wrap:balance}
+h1{font-size:34px;line-height:1}
+h2{font-size:24px;line-height:1.05}
+.ctx{color:var(--muted);margin:0 0 14px}
+
+/* Tableau "bon de commande" */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;position:relative}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:15px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font:700 12px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+td.gap{color:var(--muted);font-family:var(--f-mono)}
+td.gap::before{content:"?";display:inline-block;min-width:3.2em;border:1.5px dashed var(--line);border-radius:6px;text-align:center}
+td.cur{background:var(--hint-bg)}
+td.cur.gap::before{border-color:var(--gold)}
+td.fill{font-family:var(--f-mono);font-weight:700;color:var(--ok);animation:pop .45s ease}
+@keyframes pop{0%{background:var(--ok-bg)}100%{background:transparent}}
+.stamp{position:absolute;right:14px;top:50%;transform:translateY(-50%) rotate(-12deg);border:4px solid var(--ok);color:var(--ok);font:800 34px var(--f-display);letter-spacing:.08em;padding:2px 14px;border-radius:8px;background:color-mix(in srgb,var(--surface) 80%,transparent);pointer-events:none;animation:stamp .5s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes stamp{from{transform:translateY(-50%) rotate(-12deg) scale(2.4);opacity:0}to{transform:translateY(-50%) rotate(-12deg) scale(1);opacity:1}}
+
+.extra{margin-top:14px;font-size:14px;color:var(--muted)}
+.extra strong{color:var(--ink)}
+
+/* Carte d'étape */
+.dots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.dot{width:26px;height:8px;border-radius:4px;background:var(--line)}
+.dot.on{background:var(--gold)}
+.dot.ok{background:var(--ok)}
+.q{font-size:18px;font-weight:700;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 14px;font-size:15px}
+.fields{display:grid;gap:10px}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 150px;align-items:center;gap:10px}
+@media (max-width:420px){.field{grid-template-columns:1fr}}
+.field label{font-weight:600}
+.inp{display:flex;align-items:center;border:2px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
+.inp input{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);font:700 18px var(--f-mono);padding:8px 10px;text-align:right}
+.inp input:focus{outline:none}
+.inp:focus-within{border-color:var(--gold)}
+.inp .u{padding-right:10px;color:var(--muted);font-family:var(--f-mono)}
+.field.good .inp{border-color:var(--ok);background:var(--ok-bg)}
+.field.wrong .inp{border-color:var(--bad);background:var(--bad-bg);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.msg{grid-column:1/-1;font-size:14px;margin-top:-4px}
+.msg.bad{color:var(--bad)} .msg.good{color:var(--ok)}
+.meth{grid-column:1/-1;font:500 14px var(--f-mono);background:var(--hint-bg);border-radius:8px;padding:8px 10px}
+
+.opts{display:grid;gap:8px}
+.opt{text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:11px 14px;font-weight:600}
+.opt:hover{border-color:var(--pine)}
+.opt.no{border-color:var(--bad);background:var(--bad-bg)}
+.opt.yes{border-color:var(--ok);background:var(--ok-bg)}
+.why{font-size:14px;margin-top:8px}
+
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:800}
+.btn.main{background:var(--pine);color:var(--pine-ink)}
+.btn.soft{background:var(--hint-bg);color:var(--ink);border:1.5px solid var(--gold)}
+.btn.ghost{background:transparent;color:var(--muted);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.hint{margin-top:14px;background:var(--hint-bg);border-left:5px solid var(--gold);border-radius:8px;padding:10px 12px;font-size:15px}
+.hint b{font-family:var(--f-mono)}
+.feedback{margin-top:12px;font-weight:800;min-height:1.5em}
+.feedback.good{color:var(--ok)} .feedback.bad{color:var(--bad)}
+.win{text-align:center;padding:10px 0}
+.win .big{font:800 54px var(--f-display);color:var(--gold);letter-spacing:.1em}
+.badge{display:inline-block;margin-top:8px;background:var(--pine);color:var(--pine-ink);font:800 20px var(--f-display);text-transform:uppercase;letter-spacing:.04em;padding:6px 16px;border-radius:999px}
+
+/* Panneaux flottants */
+.drawer{position:fixed;inset:auto 16px calc(16px + env(safe-area-inset-bottom,0px)) auto;width:min(380px,calc(100vw - 32px));max-height:75vh;overflow:auto;background:var(--surface);border:2px solid var(--pine);border-radius:14px;padding:16px;box-shadow:0 14px 40px rgba(0,0,0,.25);z-index:10}
+.drawer h2{display:flex;justify-content:space-between;align-items:center}
+.x{background:transparent;border:0;color:var(--muted);font-size:26px;line-height:1}
+.formula{border-bottom:1px solid var(--line);padding:10px 0}
+.formula:last-child{border:0}
+.formula b{display:block}
+.formula code{display:block;font:600 14px var(--f-mono);background:var(--bg);border-radius:6px;padding:6px 8px;margin-top:4px;white-space:normal}
+.formula small{color:var(--muted)}
+.calc-screen{width:100%;font:700 22px var(--f-mono);text-align:right;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+.calc-out{font:700 22px var(--f-mono);text-align:right;color:var(--ok);min-height:1.6em;margin:6px 0}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keys button{padding:12px 0;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:700 18px var(--f-mono)}
+.keys button.eq{background:var(--pine);color:var(--pine-ink);border:0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>Vosges &amp; Co</b><span>Assistant(e) commercial(e) · Soutien calculs commerciaux</span></div>
+    <nav class="tabs" id="tabs" aria-label="Missions"></nav>
+    <div class="score" title="Étoiles gagnées"><span class="st">★</span><span id="stars">0</span><span style="opacity:.6;font-size:14px">/ <span id="maxstars">0</span></span></div>
+    <div class="tools">
+      <button class="tool" id="btnFiche" type="button">Fiche méthode</button>
+      <button class="tool" id="btnCalc" type="button">Calculatrice</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" id="dossier"></section>
+    <section class="panel" id="step" aria-live="polite"></section>
+  </div>
+</div>
+
+<aside class="drawer" id="fiche" hidden>
+  <h2>Fiche méthode <button class="x" type="button" data-close="fiche" aria-label="Fermer">×</button></h2>
+  <div class="formula"><b>Montant brut</b><code>Prix unitaire × Quantité</code></div>
+  <div class="formula"><b>Remise de 15 %</b><code>Remise = Brut × 15 ÷ 100</code><code>Net = Brut − Remise = Brut × 0,85</code><small>0,85 = 1 − 0,15 (on garde 85 % du prix)</small></div>
+  <div class="formula"><b>Remises successives</b><code>Net 1 = Prix × 0,85<br>Net 2 = Net 1 × 0,97</code><small>Les taux ne s'additionnent jamais : 15 % puis 3 % ≠ 18 %</small></div>
+  <div class="formula"><b>Panier moyen</b><code>CA ÷ Nombre de clients</code></div>
+  <div class="formula"><b>Part en %</b><code>(Partie ÷ Total) × 100</code><small>Toutes les parts ensemble font 100 %</small></div>
+  <div class="formula"><b>Taux d'évolution</b><code>(Valeur d'arrivée − Valeur de départ) ÷ Valeur de départ × 100</code><small>Résultat négatif = baisse</small></div>
+  <div class="formula"><b>Moyenne</b><code>Somme des valeurs ÷ Nombre de valeurs</code></div>
+</aside>
+
+<aside class="drawer" id="calc" hidden>
+  <h2>Calculatrice <button class="x" type="button" data-close="calc" aria-label="Fermer">×</button></h2>
+  <input class="calc-screen" id="calcIn" inputmode="decimal" autocomplete="off" placeholder="ex : 26,4 × 25">
+  <div class="calc-out" id="calcOut"></div>
+  <div class="keys" id="keys"></div>
+</aside>
+
+<script>
+/* ---------- utilitaires ---------- */
+const $ = s => document.querySelector(s);
+const fmt = (n, d = 2) => n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtE = n => fmt(n) + ' €';
+const fmtP = n => fmt(n) + ' %';
+function parse(s) {
+  s = String(s).replace(/[\s€%]/g, '').replace(',', '.');
+  if (s === '' || isNaN(+s)) return null;
+  return +s;
+}
+const near = (a, b, t) => Math.abs(a - b) <= t;
+
+/* champ numérique : id, libellé, réponse, unité, méthode, pièges */
+function F(id, label, ans, unit, method, traps = [], tol) {
+  return { id, label, ans, unit, method, traps,
+    tol: tol ?? (unit === '%' ? 0.051 : unit === 'coffrets' ? 0.5 : 0.011) };
+}
+const pctTrap = v => ({ v: v / 100, t: 0.0006, m: "Presque ! Tu as un nombre décimal : multiplie par 100 pour l'avoir en %." });
+const evolTraps = (a, b) => [
+  pctTrap((b - a) / a * 100),
+  { v: -(b - a) / a * 100, t: 0.06, m: "Attention au signe : fais (arrivée − départ), pas l'inverse." },
+  { v: (b - a) / b * 100, t: 0.06, m: "Il faut diviser par la valeur de DÉPART (la plus ancienne)." }
+];
+const netTraps = brut => [
+  { v: brut * 0.15, t: 0.011, m: "Ça, c'est le montant de la remise. Il faut l'enlever au montant brut." },
+  { v: brut * 1.15, t: 0.011, m: "Une remise fait baisser le prix : multiplie par 0,85, pas par 1,15." }
+];
+
+/* ---------- données des missions ---------- */
+const articles = [['Sac à dos', 26.4, 25], ['Gourde', 12.5, 30], ['Pochette cadeau', 9.8, 40], ['Cage de buts', 16.8, 15]];
+const vendeurs = [['A', 3240, 3510, 70], ['B', 2875, 3010, 62], ['C', 4550, 4380, 75], ['D', 3180, 3495, 81]];
+const mois = [['Jan.', 4200], ['Fév.', 4600], ['Mars', 5000], ['Avr.', 4800], ['Mai', 5300], ['Juin', 5600]];
+const ca50 = vendeurs.reduce((s, v) => s + v[2], 0);
+const prodTot = mois.reduce((s, m) => s + m[1], 0);
+
+const M1steps = [
+  { kind: 'mc', q: "Échauffement : le fournisseur fait 15 % de remise. Par quel nombre je multiplie le prix pour avoir directement le prix NET ?",
+    opts: [['0,15', 0, "0,15 donne le montant de la remise, pas le prix qui reste."], ['1,15', 0, "1,15 ferait AUGMENTER le prix de 15 %."], ['0,85', 1, "Oui ! 1 − 0,15 = 0,85 : on garde 85 % du prix."], ['15', 0, "Multiplier par 15 multiplierait le prix par 15 !"]],
+    hint: "Si on enlève 15 %, il reste 100 % − 15 % = … %" },
+  { q: "Sac à dos : calcule le montant brut, la remise, puis le montant net.", sub: "PU brut 26,40 € · Quantité 25",
+    hint: "<b>Brut = PU × Quantité</b> · <b>Remise = Brut × 15 ÷ 100</b> · <b>Net = Brut − Remise</b>",
+    fields: [F('sac_b', 'Montant brut', 660, '€', '26,4 × 25 = 660 €'),
+             F('sac_r', 'Montant de la remise', 99, '€', '660 × 15 ÷ 100 = 99 €', [{ v: 561, t: .011, m: "Ça, c'est le net ! Ici on veut seulement la remise (ce qu'on enlève)." }]),
+             F('sac_n', 'Montant net', 561, '€', '660 − 99 = 561 €  (ou 660 × 0,85)', netTraps(660))] }
+];
+articles.slice(1).forEach(([n, pu, q], i) => {
+  const b = pu * q, key = ['gou', 'poc', 'cag'][i];
+  M1steps.push({ q: `${n} : calcule le montant brut puis le montant net.`, sub: `PU brut ${fmtE(pu)} · Quantité ${q}`,
+    hint: "<b>Brut = PU × Quantité</b> puis <b>Net = Brut × 0,85</b>",
+    fields: [F(key + '_b', 'Montant brut', b, '€', `${fmt(pu, 1)} × ${q} = ${fmtE(b)}`),
+             F(key + '_n', 'Montant net', b * .85, '€', `${fmt(b)} × 0,85 = ${fmtE(b * .85)}`, netTraps(b))] });
+});
+const totB = articles.reduce((s, a) => s + a[1] * a[2], 0);
+M1steps.push(
+  { q: "Calcule le total BRUT puis le total NET de la commande.", sub: "Additionne les colonnes du tableau.",
+    hint: "Total brut = 660 + 375 + 392 + 252. Total net : additionne les montants nets (ou Total brut × 0,85).",
+    fields: [F('tot_b', 'Total brut', totB, '€', '660 + 375 + 392 + 252 = 1 679 €'),
+             F('tot_n', 'Total net', totB * .85, '€', '561 + 318,75 + 333,20 + 214,20 = 1 427,15 €', netTraps(totB))] },
+  { kind: 'mc', q: "Le drap de plage a 15 % puis 3 % de remises successives. Est-ce la même chose qu'une remise de 18 % ?",
+    opts: [["Oui, 15 + 3 = 18 %", 0, "Non : la 2e remise s'applique sur un prix déjà réduit, pas sur le prix de départ."], ["Non, la 2e remise se calcule sur le prix déjà réduit", 1, "Exact ! On applique ×0,85 puis ×0,97."]],
+    hint: "La 3 % se calcule sur quel prix : 16 € ou le prix après la 1re remise ?" },
+  { q: "Drap de plage (16 € HT) : calcule le PU NET 1 puis le PU NET 2.", sub: "Remise 1 : 15 % · Remise 2 : 3 %",
+    hint: "<b>Net 1 = 16 × 0,85</b> puis <b>Net 2 = Net 1 × 0,97</b> (car 1 − 0,03 = 0,97)",
+    fields: [F('drap1', 'PU NET 1', 13.6, '€', '16 × 0,85 = 13,60 €', [{ v: 2.4, t: .011, m: "2,40 € c'est la remise. Le net, c'est 16 − 2,40." }]),
+             F('drap2', 'PU NET 2', 13.192, '€', '13,60 × 0,97 = 13,19 €', [{ v: 13.12, t: .011, m: "Tu as additionné les taux (18 %). Applique 3 % sur le NET 1 : 13,60 × 0,97." }, { v: 10.6, t: .011, m: "On enlève 3 %, pas 3 € ! 13,60 × 0,97." }])] }
+);
+
+const M2steps = [
+  { q: "Calcule le panier moyen de chaque vendeur en semaine 50.", sub: "Arrondis au centime.",
+    hint: "<b>Panier moyen = CA semaine 50 ÷ Nombre de clients</b>. Ex. vendeur A : 3 510 ÷ 70",
+    fields: vendeurs.map(([v, a, b, c]) => F('pm' + v, 'Vendeur ' + v, b / c, '€', `${fmt(b, 0)} ÷ ${c} = ${fmtE(b / c)}`,
+      [{ v: a / c, t: .011, m: "Tu as pris le CA de la semaine 49. Utilise la semaine 50." }, { v: c / b, t: .001, m: "C'est à l'envers : CA ÷ clients." }])) },
+  { q: "Calcule le CA total de la semaine 50.", sub: "Les 4 vendeurs ensemble.",
+    hint: "Additionne la colonne « CA Semaine 50 » : 3 510 + 3 010 + 4 380 + 3 495",
+    fields: [F('ca50', 'CA total S50', ca50, '€', '3 510 + 3 010 + 4 380 + 3 495 = 14 395 €',
+      [{ v: vendeurs.reduce((s, v) => s + v[1], 0), t: .5, m: "Ça c'est la semaine 49. On veut la semaine 50." }])] },
+  { q: "Calcule la part du CA de chaque vendeur, en %.", sub: "Arrondis à 0,01 %. Vérifie : le total doit faire 100 %.",
+    hint: "<b>Part = CA du vendeur ÷ CA total × 100</b>. Ex. A : 3 510 ÷ 14 395 × 100",
+    fields: vendeurs.map(([v, , b]) => F('pa' + v, 'Vendeur ' + v, b / ca50 * 100, '%', `${fmt(b, 0)} ÷ 14 395 × 100 = ${fmtP(b / ca50 * 100)}`, [pctTrap(b / ca50 * 100)])) },
+  { q: "Calcule le taux d'évolution du CA entre S49 et S50.", sub: "Arrondis à 0,01 %. Une baisse donne un taux négatif.",
+    hint: "<b>(CA S50 − CA S49) ÷ CA S49 × 100</b>. Ex. A : (3 510 − 3 240) ÷ 3 240 × 100",
+    fields: vendeurs.map(([v, a, b]) => F('ev' + v, 'Vendeur ' + v, (b - a) / a * 100, '%', `(${fmt(b, 0)} − ${fmt(a, 0)}) ÷ ${fmt(a, 0)} × 100 = ${fmtP((b - a) / a * 100)}`, evolTraps(a, b))) },
+  { kind: 'mc', q: "Analyse express 1/3 : quel vendeur a le CA le plus élevé en semaine 50 ?",
+    opts: ['A', 'B', 'C', 'D'].map(v => ['Vendeur ' + v, v === 'C' ? 1 : 0, v === 'C' ? "Oui : 4 380 €, soit 30,43 % du CA." : "Regarde la colonne CA S50 ou la part du CA : qui a le plus gros chiffre ?"]),
+    hint: "Compare la colonne « CA S50 »." },
+  { kind: 'mc', q: "Analyse express 2/3 : quel vendeur a la plus forte progression ?",
+    opts: ['A', 'B', 'C', 'D'].map(v => ['Vendeur ' + v, v === 'D' ? 1 : 0, v === 'D' ? "Oui : +9,91 %, juste devant A (+8,33 %)." : "Regarde la colonne « Évolution » : quel taux est le plus grand ?"]),
+    hint: "La progression, c'est le taux d'évolution, pas le CA." },
+  { kind: 'mc', q: "Analyse express 3/3 : quel vendeur doit attirer l'attention du responsable ?",
+    opts: [['Vendeur B, car il a le plus petit CA', 0, "B progresse (+4,70 %). Ce n'est pas lui qui inquiète."], ['Vendeur C, car son CA baisse', 1, "Exact : C a le meilleur CA mais il recule de 3,74 %. Il faut comprendre pourquoi."], ['Vendeur D, car son panier moyen est faible', 0, "D a beaucoup de clients et progresse le plus. Son panier est faible mais ce n'est pas l'alerte principale."]],
+    hint: "Cherche le seul taux d'évolution négatif." }
+];
+
+const M3steps = [
+  { q: "Calcule la production totale sur les six mois.", sub: "En nombre de coffrets.",
+    hint: "4 200 + 4 600 + 5 000 + 4 800 + 5 300 + 5 600",
+    fields: [F('ptot', 'Production totale', prodTot, 'coffrets', '4 200 + 4 600 + 5 000 + 4 800 + 5 300 + 5 600 = 29 500')] },
+  { q: "Calcule la production moyenne mensuelle.", sub: "Arrondis à 0,01.",
+    hint: "<b>Moyenne = Total ÷ Nombre de mois</b> = 29 500 ÷ 6",
+    fields: [F('pmoy', 'Moyenne par mois', prodTot / 6, 'coffrets', '29 500 ÷ 6 = 4 916,67 coffrets',
+      [{ v: prodTot / 5, t: .5, m: "Compte bien les mois : il y en a 6." }, { v: prodTot / 12, t: .5, m: "On étudie 6 mois, pas 12." }], 0.011)] },
+  { q: "Calcule la part de chaque mois dans la production totale, en %.", sub: "Arrondis à 0,01 %.",
+    hint: "<b>Part = Production du mois ÷ 29 500 × 100</b>. Ex. janvier : 4 200 ÷ 29 500 × 100",
+    fields: mois.map(([m, p], i) => F('pp' + i, m, p / prodTot * 100, '%', `${fmt(p, 0)} ÷ 29 500 × 100 = ${fmtP(p / prodTot * 100)}`, [pctTrap(p / prodTot * 100)])) },
+  { q: "Calcule les taux d'évolution d'un mois à l'autre.", sub: "Arrondis à 0,01 %.",
+    hint: "<b>(Mois d'arrivée − Mois de départ) ÷ Mois de départ × 100</b>. Ex. janv.→fév. : (4 600 − 4 200) ÷ 4 200 × 100",
+    fields: mois.slice(1).map(([m, p], i) => { const a = mois[i][1]; return F('pe' + (i + 1), `${mois[i][0]} → ${m}`, (p - a) / a * 100, '%', `(${fmt(p, 0)} − ${fmt(a, 0)}) ÷ ${fmt(a, 0)} × 100 = ${fmtP((p - a) / a * 100)}`, evolTraps(a, p)); }) },
+  { q: "Pour le bilan : calcule l'évolution globale de janvier à juin.", sub: "Arrondis à 0,01 %.",
+    hint: "(5 600 − 4 200) ÷ 4 200 × 100",
+    fields: [F('pglob', 'Janvier → Juin', 1400 / 42, '%', '(5 600 − 4 200) ÷ 4 200 × 100 = 33,33 %', evolTraps(4200, 5600))] },
+  { kind: 'mc', q: "Bilan : la production suit-elle une tendance globalement positive ?",
+    opts: [["Non, car elle baisse en avril", 0, "Une seule baisse (−4 %) ne change pas la tendance : sur 6 mois, la production augmente de 33,33 %."], ["Oui : +33,33 % de janvier à juin, malgré une baisse de 4 % en avril", 1, "Parfait, c'est une phrase de bilan complète et justifiée par un calcul."], ["On ne peut pas savoir", 0, "Si : les taux d'évolution et l'évolution globale permettent de conclure."]],
+    hint: "Compte les taux positifs et regarde l'évolution globale." }
+];
+
+const MISSIONS = [
+  { title: "Le bon de commande express", time: "20 min", badge: "Pro de la remise",
+    ctx: "Ton responsable prépare une commande de cadeaux pour plusieurs entreprises. Le fournisseur accorde <strong>15 % de remise</strong> sur tout le catalogue.",
+    steps: M1steps,
+    table: () => ({ head: ['Article', 'PU brut HT', 'Qté', 'Montant brut', 'Remise', 'Montant net'],
+      rows: articles.map(([n, pu, q], i) => { const k = ['sac', 'gou', 'poc', 'cag'][i];
+        return [n, fmtE(pu), q, { f: k + '_b' }, i === 0 ? { f: 'sac_r' } : '—', { f: k + '_n' }]; })
+        .concat([[ '<strong>TOTAL</strong>', '', '', { f: 'tot_b' }, '', { f: 'tot_n' }]]) }),
+    extra: () => `<strong>Drap de plage</strong> · 16,00 € HT · remises 15 % puis 3 % → PU NET 1 : ${cell('drap1')} · PU NET 2 : ${cell('drap2')}` },
+  { title: "Le tableau de bord des vendeurs", time: "20 min", badge: "Analyste des ventes",
+    ctx: "Le responsable prépare la réunion commerciale. Il te transmet les résultats de quatre vendeurs.",
+    steps: M2steps,
+    table: () => ({ head: ['Vendeur', 'CA S49', 'CA S50', 'Clients S50', 'Panier moyen', 'Part du CA', 'Évolution'],
+      rows: vendeurs.map(([v, a, b, c]) => [v, fmtE(a), fmtE(b), c, { f: 'pm' + v }, { f: 'pa' + v }, { f: 'ev' + v }])
+        .concat([['<strong>TOTAL</strong>', '', { f: 'ca50' }, '', '', '100 %', '']]) }) },
+  { title: "L'enquête sur l'activité", time: "20 min", badge: "Détective des données",
+    ctx: "Vosges &amp; Co suit sa production de coffrets cadeaux sur six mois. À toi de transformer les chiffres en informations utiles.",
+    steps: M3steps,
+    table: () => ({ head: ['Mois'].concat(mois.map(m => m[0])),
+      rows: [['Production'].concat(mois.map(m => fmt(m[1], 0))),
+             ['% du total'].concat(mois.map((m, i) => ({ f: 'pp' + i }))),
+             ['Évolution'].concat(['—'], mois.slice(1).map((m, i) => ({ f: 'pe' + (i + 1) })))] }),
+    extra: () => `Total : ${cell('ptot')} · Moyenne mensuelle : ${cell('pmoy')} · Janvier → Juin : ${cell('pglob')}` }
+];
+
+/* index des champs → mission + format d'affichage */
+const FIELD = {};
+MISSIONS.forEach((m, mi) => m.steps.forEach(s => (s.fields || []).forEach(f => FIELD[f.id] = f)));
+const show = f => f.unit === '%' ? fmtP(f.ans) : f.unit === '€' ? fmtE(f.ans) : fmt(f.ans, f.id === 'pmoy' ? 2 : 0);
+
+/* ---------- état ---------- */
+let S = { m: 0, step: [0, 0, 0], solved: {}, stars: {}, done: [false, false, false] };
+let cur = { errors: 0, hint: false, method: false, mcWrong: new Set() };
+try { const saved = JSON.parse(localStorage.getItem('vosges-co') || 'null'); if (saved && saved.step) S = saved; } catch (e) {}
+const save = () => { try { localStorage.setItem('vosges-co', JSON.stringify(S)); } catch (e) {} };
+const maxStars = MISSIONS.reduce((s, m) => s + m.steps.length * 3, 0);
+const totalStars = () => Object.values(S.stars).reduce((a, b) => a + b, 0);
+
+function cell(id) {
+  return S.solved[id] ? `<b style="color:var(--ok);font-family:var(--f-mono)">${show(FIELD[id])}</b>` : '<b style="font-family:var(--f-mono)">?</b>';
+}
+
+/* ---------- rendu ---------- */
+function renderTop() {
+  $('#tabs').innerHTML = MISSIONS.map((m, i) =>
+    `<button class="tab" type="button" data-m="${i}" aria-current="${i === S.m}">Mission ${i + 1}${S.done[i] ? ' <span class="done">✓</span>' : ''}</button>`).join('');
+  $('#stars').textContent = totalStars();
+  $('#maxstars').textContent = maxStars;
+}
+
+function renderDossier(stamp) {
+  const M = MISSIONS[S.m], T = M.table();
+  const step = M.steps[S.step[S.m]];
+  const curIds = new Set(step && !S.done[S.m] ? (step.fields || []).map(f => f.id) : []);
+  const td = c => {
+    if (c && typeof c === 'object') {
+      const f = FIELD[c.f];
+      if (S.solved[c.f]) return `<td class="fill">${show(f)}</td>`;
+      return `<td class="gap${curIds.has(c.f) ? ' cur' : ''}"></td>`;
+    }
+    return `<td>${c}</td>`;
+  };
+  $('#dossier').innerHTML = `
+    <div class="eyebrow">Mission ${S.m + 1} · ⏱ ${M.time}</div>
+    <h1>${M.title}</h1>
+    <p class="ctx">${M.ctx}</p>
+    <div class="tbl-wrap">
+      <table><thead><tr>${T.head.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${T.rows.map(r => `<tr>${r.map(td).join('')}</tr>`).join('')}</tbody></table>
+      ${S.done[S.m] ? `<div class="stamp"${stamp ? '' : ' style="animation:none"'}>VALIDÉ</div>` : ''}
+    </div>
+    ${M.extra ? `<p class="extra">${M.extra()}</p>` : ''}
+    <p class="extra">Les cases <b>?</b> en jaune sont celles de l'étape en cours. Elles se remplissent quand tu trouves la bonne réponse.</p>`;
+}
+
+function dots(M) {
+  return `<div class="dots">${M.steps.map((s, i) => `<span class="dot ${i < S.step[S.m] || S.done[S.m] ? 'ok' : i === S.step[S.m] ? 'on' : ''}"></span>`).join('')}</div>`;
+}
+
+function renderStep() {
+  const M = MISSIONS[S.m];
+  const el = $('#step');
+  if (S.done[S.m]) return renderWin();
+  const i = S.step[S.m], st = M.steps[i];
+  let body = '';
+  if (st.kind === 'mc') {
+    body = `<div class="opts">${st.opts.map((o, k) => `<button type="button" class="opt${cur.mcWrong.has(k) ? ' no' : ''}" data-opt="${k}">${o[0]}</button>`).join('')}</div><div class="why" id="why"></div>`;
+  } else {
+    body = `<form id="form" class="fields" novalidate>${st.fields.map(f => {
+      const ok = S.solved[f.id];
+      return `<div class="field${ok ? ' good' : ''}" data-f="${f.id}">
+        <label for="in_${f.id}">${f.label}</label>
+        <div class="inp"><input id="in_${f.id}" inputmode="decimal" autocomplete="off" ${ok ? `value="${fmt(f.ans, f.unit === 'coffrets' ? 0 : 2)}" readonly` : ''}><span class="u">${f.unit === 'coffrets' ? '' : f.unit}</span></div>
+        <div class="msg" id="msg_${f.id}"></div>
+        ${cur.method && !ok ? `<div class="meth">${f.method}</div>` : ''}
+      </div>`; }).join('')}
+      <button type="submit" hidden></button></form>`;
+  }
+  el.innerHTML = `
+    <div class="eyebrow">Étape ${i + 1} sur ${M.steps.length}</div>
+    ${dots(M)}
+    <p class="q">${st.q}</p>
+    ${st.sub ? `<p class="sub">${st.sub}</p>` : ''}
+    ${body}
+    ${cur.hint ? `<div class="hint">💡 ${st.hint}</div>` : ''}
+    <div class="feedback" id="fb"></div>
+    <div class="actions">
+      ${st.kind === 'mc' ? '' : '<button class="btn main" type="button" id="check">Vérifier</button>'}
+      <button class="btn soft" type="button" id="hintBtn" ${cur.hint ? 'disabled' : ''}>Coup de pouce</button>
+      ${st.kind === 'mc' ? '' : `<button class="btn ghost" type="button" id="methBtn" ${cur.errors < 2 || cur.method ? 'disabled' : ''} title="${cur.errors < 2 ? 'Disponible après 2 essais' : ''}">Voir la méthode${cur.errors < 2 ? ' (après 2 essais)' : ''}</button>`}
+    </div>`;
+  const first = el.querySelector('input:not([readonly])');
+  if (first && document.activeElement?.closest?.('#step') == null && window.innerWidth > 860) first.focus({ preventScroll: true });
+}
+
+function renderWin() {
+  const M = MISSIONS[S.m];
+  const got = M.steps.reduce((s, st, i) => s + (S.stars[S.m + '-' + i] || 0), 0), max = M.steps.length * 3;
+  const r = got / max, n = r >= .85 ? 3 : r >= .6 ? 2 : 1;
+  const next = S.done.indexOf(false);
+  const all = next === -1;
+  $('#step').innerHTML = `
+    <div class="eyebrow">Mission ${S.m + 1} terminée</div>
+    ${dots(M)}
+    <div class="win">
+      <div class="big">${'★'.repeat(n)}<span style="opacity:.25">${'★'.repeat(3 - n)}</span></div>
+      <p class="q">${got} étoiles sur ${max}</p>
+      <div class="badge">${M.badge}</div>
+      <p class="sub" style="margin-top:14px">${n === 3 ? "Excellent travail, ton responsable peut compter sur toi !" : n === 2 ? "Bon travail ! Relis la fiche méthode pour les points où tu as hésité." : "Mission accomplie ! Tu peux la refaire pour gagner plus d'étoiles."}</p>
+      ${all ? `<p class="q" style="margin-top:18px">Les 3 missions sont terminées : ${totalStars()} ★ sur ${maxStars}.</p>` : ''}
+    </div>
+    <div class="actions" style="justify-content:center">
+      ${!all ? `<button class="btn main" type="button" data-go="${next}">Mission ${next + 1} →</button>` : ''}
+      <button class="btn ghost" type="button" id="redo">Refaire cette mission</button>
+      ${all ? '<button class="btn ghost" type="button" id="reset">Tout recommencer</button>' : ''}
+    </div>`;
+}
+
+function renderAll(stamp) { renderTop(); renderDossier(stamp); renderStep(); }
+
+/* ---------- logique ---------- */
+function resetCur() { cur = { errors: 0, hint: false, method: false, mcWrong: new Set() }; }
+function award() {
+  const k = S.m + '-' + S.step[S.m];
+  let s = 3;
+  if (cur.hint) s--;
+  if (cur.errors >= 1) s--;
+  if (cur.errors >= 3 || cur.method) s = 1;
+  S.stars[k] = Math.max(1, s);
+}
+function advance() {
+  award();
+  const M = MISSIONS[S.m];
+  const gained = S.stars[S.m + '-' + S.step[S.m]];
+  if (S.step[S.m] + 1 >= M.steps.length) { S.done[S.m] = true; save(); resetCur(); renderAll(true); return; }
+  $('#fb').className = 'feedback good';
+  $('#fb').textContent = `Bravo ! +${gained} ★`;
+  $('#stars').textContent = totalStars();
+  setTimeout(() => { S.step[S.m]++; save(); resetCur(); renderAll(); }, 900);
+}
+
+function check() {
+  const st = MISSIONS[S.m].steps[S.step[S.m]];
+  let wrong = 0, empty = 0;
+  st.fields.forEach(f => {
+    if (S.solved[f.id]) return;
+    const box = document.querySelector(`[data-f="${f.id}"]`), msg = $('#msg_' + f.id);
+    const v = parse($('#in_' + f.id).value);
+    box.classList.remove('wrong', 'good'); msg.className = 'msg'; msg.textContent = '';
+    if (v === null) { empty++; msg.className = 'msg bad'; msg.textContent = 'Écris un nombre (ex : 12,50).'; return; }
+    if (near(v, f.ans, f.tol)) {
+      S.solved[f.id] = true; box.classList.add('good');
+      const inp = $('#in_' + f.id); inp.readOnly = true;
+      msg.className = 'msg good'; msg.textContent = '✓ ' + f.method;
+      return;
+    }
+    wrong++; box.classList.add('wrong'); void box.offsetWidth;
+    const trap = f.traps.find(t => near(v, t.v, t.t));
+    msg.className = 'msg bad';
+    msg.textContent = trap ? trap.m : (Math.abs(v - f.ans) / Math.abs(f.ans) < 0.02 ? "Tout près ! Vérifie ton arrondi (2 chiffres après la virgule)." : "Pas encore. Reprends ton calcul.");
+  });
+  renderDossier();
+  if (empty && !wrong) return;
+  if (wrong || empty) {
+    cur.errors++;
+    const fb = $('#fb'); fb.className = 'feedback bad';
+    fb.textContent = wrong === 1 ? "Une réponse à corriger." : `${wrong + empty} réponses à corriger.`;
+    if (cur.errors >= 2 && !cur.method) { const b = $('#methBtn'); if (b) { b.disabled = false; b.title = ''; b.textContent = 'Voir la méthode'; } }
+    if (cur.errors === 1 && !cur.hint) fb.textContent += " Le coup de pouce peut t'aider.";
+    save(); return;
+  }
+  save(); advance();
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.m !== undefined) { S.m = +t.dataset.m; resetCur(); save(); renderAll(); return; }
+  if (t.dataset.go !== undefined) { S.m = +t.dataset.go; resetCur(); save(); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (t.dataset.close) { $('#' + t.dataset.close).hidden = true; return; }
+  if (t.id === 'btnFiche') { $('#fiche').hidden = !$('#fiche').hidden; $('#calc').hidden = true; return; }
+  if (t.id === 'btnCalc') { $('#calc').hidden = !$('#calc').hidden; $('#fiche').hidden = true; if (!$('#calc').hidden) $('#calcIn').focus(); return; }
+  if (t.id === 'check') return check();
+  if (t.id === 'hintBtn') { keepInputs(() => { cur.hint = true; }); return; }
+  if (t.id === 'methBtn') { keepInputs(() => { cur.method = true; }); return; }
+  if (t.id === 'redo' || t.id === 'reset') {
+    const ms = t.id === 'reset' ? [0, 1, 2] : [S.m];
+    ms.forEach(mi => { MISSIONS[mi].steps.forEach((st, i) => { delete S.stars[mi + '-' + i]; (st.fields || []).forEach(f => delete S.solved[f.id]); }); S.step[mi] = 0; S.done[mi] = false; });
+    if (t.id === 'reset') S.m = 0;
+    resetCur(); save(); renderAll(); return;
+  }
+  if (t.dataset.opt !== undefined) {
+    const st = MISSIONS[S.m].steps[S.step[S.m]], k = +t.dataset.opt, o = st.opts[k];
+    const why = $('#why');
+    if (o[1]) {
+      t.classList.add('yes'); why.style.color = 'var(--ok)'; why.textContent = o[2];
+      document.querySelectorAll('.opt').forEach(b => b.disabled = true);
+      setTimeout(advance, 700);
+    } else if (!cur.mcWrong.has(k)) {
+      cur.mcWrong.add(k); cur.errors++; t.classList.add('no'); why.style.color = 'var(--bad)'; why.textContent = o[2];
+    }
+  }
+});
+document.addEventListener('submit', e => { e.preventDefault(); if (e.target.id === 'form') check(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#fiche').hidden = true; $('#calc').hidden = true; } });
+
+function keepInputs(fn) {
+  const vals = {}; document.querySelectorAll('#step input:not([readonly])').forEach(i => vals[i.id] = i.value);
+  fn(); renderStep();
+  Object.entries(vals).forEach(([id, v]) => { const i = document.getElementById(id); if (i) i.value = v; });
+}
+
+/* ---------- calculatrice ---------- */
+const K = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '0', ',', '(', '+', ')', 'C', '⌫', '='];
+$('#keys').innerHTML = K.map(k => `<button type="button" data-k="${k}" class="${k === '=' ? 'eq' : ''}">${k}</button>`).join('');
+function calcEval() {
+  const raw = $('#calcIn').value;
+  const ex = raw.replace(/×|x|X/g, '*').replace(/÷|:/g, '/').replace(/−/g, '-').replace(/,/g, '.').replace(/\s/g, '');
+  if (!ex) { $('#calcOut').textContent = ''; return; }
+  if (!/^[0-9.+\-*/()]+$/.test(ex)) { $('#calcOut').textContent = '…'; return; }
+  try { const r = Function('"use strict";return (' + ex + ')')(); $('#calcOut').textContent = isFinite(r) ? '= ' + r.toLocaleString('fr-FR', { maximumFractionDigits: 6 }) : '…'; }
+  catch (e) { $('#calcOut').textContent = '…'; }
+}
+$('#keys').addEventListener('click', e => {
+  const k = e.target.closest('button')?.dataset.k; if (!k) return;
+  const inp = $('#calcIn');
+  if (k === 'C') inp.value = '';
+  else if (k === '⌫') inp.value = inp.value.slice(0, -1);
+  else if (k === '=') { calcEval(); const r = $('#calcOut').textContent.replace('= ', ''); if (r && r !== '…') inp.value = r.replace(/\s/g, ''); }
+  else inp.value += k;
+  calcEval();
+});
+$('#calcIn').addEventListener('input', calcEval);
+
+renderAll();
+</script>
+</body>
+</html>
